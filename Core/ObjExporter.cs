@@ -10,6 +10,7 @@ using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes.ModelAnimation;
 using ValveResourceFormat.Serialization;
 using ValveResourceFormat.IO;
+using ValveResourceFormat.ResourceTypes;
 
 namespace EffigyMaker.Core
 {
@@ -87,6 +88,26 @@ namespace EffigyMaker.Core
                         var buffer = ReadAttributeBuffer(vertexBuffer, attribute);
                         var numComponents = buffer.Length / vertexBuffer.Count;
 
+
+                        if (attribute.Name == "BLENDINDICES")
+                        {
+                            var byteBuffer = buffer.Select(f => (byte)f).ToArray();
+                            var rawBufferData = new byte[buffer.Length];
+                            System.Buffer.BlockCopy(byteBuffer, 0, rawBufferData, 0, rawBufferData.Length);
+
+                            var blendIndices = rawBufferData.ChunkBy(4);
+
+                            objMesh.BlendIndices.AddRange(blendIndices);
+
+                            continue;
+                        }
+
+                        if (attribute.Name == "BLENDWEIGHT")
+                        {
+                            var vectors = ToVector4Array(buffer);
+                            objMesh.BlendWeights.AddRange(vectors);
+                        }
+
                         if (attribute.Name == "POSITION")
                         {
                             var vectors = ToVector3Array(buffer);
@@ -135,12 +156,61 @@ namespace EffigyMaker.Core
                 }
             }
 
+            // Apply first frame of loadout animation
+            var animations = GetAllAnimations(model);
+            var animation = animations.First(a => a.Name == "loadout_anim");
+            var animMatrices = animation.GetAnimationMatrices(0, skeleton);
+            //for (int i = 0; i < objMesh.Positions.Count; i++)
+            //{
+            //    objMesh.Positions[i] = Vector3.
+            //}
+
+            // Transform to be smaller and upright
             objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
             objMesh.Normals = objMesh.Normals.Select(v => v = Vector3.TransformNormal(v, TRANSFORMSOURCETOSTANDARD)).ToList();
 
             var val = objMesh.Faces.Select(f => f.Max(d => d.PositionIndex)).Max();
 
             File.WriteAllText("out.obj", objMesh.ToString());
+        }
+
+        /// <summary>
+        /// Gets a list of animations from the given model
+        /// </summary>
+        /// <param name="model">The model to get animations from</param>
+        /// <returns>The list of animations</returns>
+        private List<Animation> GetAllAnimations(VModel model)
+        {
+            var animGroupPaths = model.GetReferencedAnimationGroupNames();
+            var animations = model.GetEmbeddedAnimations().ToList();
+
+            // Load animations from referenced animation groups
+            foreach (var animGroupPath in animGroupPaths)
+            {
+                var animGroup = FileLoader.LoadFile(animGroupPath + "_c");
+                if (animGroup != default)
+                {
+                    var data = animGroup.DataBlock is NTRO ntro
+                        ? ntro.Output as IKeyValueCollection
+                        : ((BinaryKV3)animGroup.DataBlock).Data;
+
+                    // Get the list of animation files
+                    var animArray = data.GetArray<string>("m_localHAnimArray").Where(a => a != null);
+                    // Get the key to decode the animations
+                    var decodeKey = data.GetSubCollection("m_decodeKey");
+
+                    // Load animation files
+                    foreach (var animationFile in animArray)
+                    {
+                        var animResource = FileLoader.LoadFile(animationFile + "_c");
+
+                        // Build animation classes
+                        animations.AddRange(Animation.FromResource(animResource, decodeKey));
+                    }
+                }
+            }
+
+            return animations.ToList();
         }
 
         /// <summary>

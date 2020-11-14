@@ -16,6 +16,13 @@ namespace EffigyMaker.Core
         public List<List<ObjFaceVertex>> Faces { get; set; } = new List<List<ObjFaceVertex>>();
 
         /// <summary>
+        /// These aren't exported to the obj file, but we need them for doing animations
+        /// THESE ARE INDEXES OF BONES
+        /// </summary>
+        public List<List<byte>> BlendIndices { get; set; } = new List<List<byte>>();
+        public List<Vector4> BlendWeights { get; set; } = new List<Vector4>();
+
+        /// <summary>
         /// The obj mesh as a string, ready to be written to a file
         /// </summary>
         /// <returns>The string to be written to a file</returns>
