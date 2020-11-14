@@ -10,7 +10,7 @@ namespace EffigyMaker.Core
     /// </summary>
     public class ObjMesh
     {
-        public List<Vector3> Vertices { get; set; } = new List<Vector3>();
+        public List<Vector3> Positions { get; set; } = new List<Vector3>();
         public List<Vector3> Normals { get; set; } = new List<Vector3>();
         public List<Vector2> TextureCoords { get; set; } = new List<Vector2>();
         public List<List<ObjFaceVertex>> Faces { get; set; } = new List<List<ObjFaceVertex>>();
@@ -23,7 +23,7 @@ namespace EffigyMaker.Core
         {
             var lines = new List<string>();
 
-            foreach (var vertex in Vertices)
+            foreach (var vertex in Positions)
             {
                 lines.Add($"v {vertex.X} {vertex.Y} {vertex.Z}");
             }

@@ -9,6 +9,17 @@ namespace EffigyMaker.Core
     /// </summary>
     public class ObjFaceVertex
     {
+        /// <summary>
+        /// ctor (this is for when they're all the same index)
+        /// </summary>
+        /// <param name="index">The index for all 3 parameters</param>
+        public ObjFaceVertex(int index)
+        {
+            PositionIndex = index;
+            NormalIndex = index;
+            TextureCoordinateIndex = index;
+        }
+
         public int? PositionIndex { get; set; }
         public int? NormalIndex { get; set; }
         public int? TextureCoordinateIndex { get; set; }
