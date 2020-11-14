@@ -166,7 +166,7 @@ namespace EffigyMaker.Core
                 var resultVectors = new List<Vector3>();
                 for (int m = 0; m < 4; m++)
                 {
-                    var matrixIndex = (int)objMesh.BlendIndices[i][m]; // This is prolly wrong
+                    var matrixIndex = (int)objMesh.BlendIndices[i][m];
                     float weight = new float[]
                     {
                         objMesh.BlendWeights[i].X,
@@ -181,7 +181,6 @@ namespace EffigyMaker.Core
 
             // Transform to be smaller and upright
             objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
-            objMesh.Normals = objMesh.Normals.Select(v => v = Vector3.TransformNormal(v, TRANSFORMSOURCETOSTANDARD)).ToList();
 
             var val = objMesh.Faces.Select(f => f.Max(d => d.PositionIndex)).Max();
 
