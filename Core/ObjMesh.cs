@@ -23,26 +23,29 @@ namespace EffigyMaker.Core
         {
             var lines = new List<string>();
 
+            lines.Add("# Exported from EffigyMaker");
+            lines.Add("o Object.1");
+
             foreach (var vertex in Positions)
             {
-                lines.Add($"v {vertex.X} {vertex.Y} {vertex.Z}");
+                lines.Add($"v {vertex.X:0.######} {vertex.Y:0.######} {vertex.Z:0.######}");
             }
 
             foreach (var vertex in Normals)
             {
-                lines.Add($"vn {vertex.X} {vertex.Y} {vertex.Z}");
+                lines.Add($"vn {vertex.X:0.######} {vertex.Y:0.######} {vertex.Z:0.######}");
             }
 
             foreach (var coord in TextureCoords)
             {
-                lines.Add($"vt {coord.X} {coord.Y}");
+                lines.Add($"vt {coord.X:0.######} {coord.Y:0.######}");
             }
 
             foreach (var face in Faces)
             {
                 lines.Add($"f {string.Join(" ", face)}");
             }
-
+            lines.Add("\n"); // Add a few newlines at the end
             return string.Join("\n", lines);
         }
     }
