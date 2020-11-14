@@ -160,10 +160,24 @@ namespace EffigyMaker.Core
             var animations = GetAllAnimations(model);
             var animation = animations.First(a => a.Name == "loadout_anim");
             var animMatrices = animation.GetAnimationMatrices(0, skeleton);
-            //for (int i = 0; i < objMesh.Positions.Count; i++)
-            //{
-            //    objMesh.Positions[i] = Vector3.
-            //}
+            for (int i = 0; i < objMesh.Positions.Count; i++)
+            {
+                var position = objMesh.Positions[i];
+                var resultVectors = new List<Vector3>();
+                for (int m = 0; m < 4; m++)
+                {
+                    var matrixIndex = (int)objMesh.BlendIndices[i][m]; // This is prolly wrong
+                    float weight = new float[]
+                    {
+                        objMesh.BlendWeights[i].X,
+                        objMesh.BlendWeights[i].Y,
+                        objMesh.BlendWeights[i].Z,
+                        objMesh.BlendWeights[i].W,
+                    }[m];
+                    resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weight));
+                }
+                objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
+            }
 
             // Transform to be smaller and upright
             objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
