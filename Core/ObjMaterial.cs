@@ -14,8 +14,9 @@ namespace EffigyMaker.Core
     public class ObjMaterial
     {
         public string Name { get; set; }
-        public float SpecularExponent { get; set; } = 10;
         public SKImage TextureImage { get; set; }
+        public SKImage NormalsImage { get; set; }
+        public SKImage SpecularImage { get; set; }
 
         /// <summary>
         /// Clones the current ObjMaterial
@@ -25,7 +26,6 @@ namespace EffigyMaker.Core
         {
             var mat = new ObjMaterial();
             mat.Name = Name;
-            mat.SpecularExponent = SpecularExponent;
             mat.TextureImage = TextureImage;
             return mat;
         }
@@ -42,13 +42,24 @@ namespace EffigyMaker.Core
             var mat = new ObjMaterial();
 
             mat.Name = name;
-            mat.SpecularExponent = material.FloatParams?["g_flSpecularExponent"] ?? 10;
 
             // actual texture
             var filename = material.TextureParams["g_tColor"];
             var data = vpkLoader.LoadFile(filename + "_c");
             var bitmap = ((Texture)data.DataBlock).GenerateBitmap();
             mat.TextureImage = SKImage.FromBitmap(bitmap.FlipVertically());
+
+            // Normals
+            filename = material.TextureParams["g_tNormal"];
+            data = vpkLoader.LoadFile(filename + "_c");
+            bitmap = ((Texture)data.DataBlock).GenerateBitmap();
+            mat.NormalsImage = SKImage.FromBitmap(bitmap.FlipVertically());
+
+            // Specular
+            filename = material.TextureParams["g_tMasks2"];
+            data = vpkLoader.LoadFile(filename + "_c");
+            bitmap = ((Texture)data.DataBlock).GenerateBitmap();
+            mat.SpecularImage = SKImage.FromBitmap(bitmap.FlipVertically());
 
             return mat;
         }
@@ -92,20 +103,21 @@ namespace EffigyMaker.Core
             mtlText.Add("# Material count 1");
             mtlText.Add("");
             mtlText.Add($"newmtl {Name}");
-            mtlText.Add($"ns {SpecularExponent:0.######}");
-            mtlText.Add($"Kd 1.000 1.000 1.000"); // mebbe get this and others from file? we do have stuff like "g_vSpecularColor"
+            mtlText.Add($"Kd 1.000 1.000 1.000");
             mtlText.Add("Ka 1.000000 1.000000 1.000000");
-            mtlText.Add("Kd 0.800000 0.800000 0.800000");
-            mtlText.Add("Ks 0.000000 0.000000 0.000000");
-            mtlText.Add("Ke 0.000000 0.000000 0.000000");
+            mtlText.Add("Ks 1.000000 1.000000 1.000000");
             mtlText.Add("Ni 1.450000");
             mtlText.Add("d 1.000000");
             mtlText.Add("illum 2");
             mtlText.Add($"map_Kd {file}.png");
+            mtlText.Add($"map_bump {file}_Normals.png");
+            //mtlText.Add($"map_Ks {file}_Specular.png"); (ignore specular for now, because its a bit bugged)
 
             File.WriteAllText(path + ".mtl", string.Join("\n", mtlText));
 
             File.WriteAllBytes(path + ".png", TextureImage.Encode(SKEncodedImageFormat.Png, 100).ToArray());
+            File.WriteAllBytes(path + "_Normals.png", NormalsImage.Encode(SKEncodedImageFormat.Png, 100).ToArray());
+            //File.WriteAllBytes(path + "_Specular.png", SpecularImage.Encode(SKEncodedImageFormat.Png, 100).ToArray());
         }
     }
 }

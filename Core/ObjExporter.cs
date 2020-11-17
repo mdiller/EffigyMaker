@@ -51,8 +51,8 @@ namespace EffigyMaker.Core
             var objMeshes = new List<ObjMesh>();
 
             var animations = GetAllAnimations(models[0]);
-            var animation = animations.First(a => a.Name.Contains("idle_anim"));
-
+            var animation = animations.First(a => a.Name.Contains("idle"));
+            
             foreach (var model in models)
             {
                 var objMesh = new ObjMesh();
@@ -64,23 +64,26 @@ namespace EffigyMaker.Core
 
                 // Apply animation
                 var animMatrices = animation.GetAnimationMatrices(0, model.GetSkeleton(0));
-                for (int i = 0; i < objMesh.VertexCount; i++)
+                if (objMesh.BlendWeights.Count == objMesh.BlendIndices.Count)
                 {
-                    var position = objMesh.Positions[i];
-                    var resultVectors = new List<Vector3>();
-                    float[] weights = new float[]
+                    for (int i = 0; i < objMesh.VertexCount; i++)
                     {
-                        objMesh.BlendWeights[i].X,
-                        objMesh.BlendWeights[i].Y,
-                        objMesh.BlendWeights[i].Z,
-                        objMesh.BlendWeights[i].W,
-                    };
-                    for (int m = 0; m < 4; m++)
-                    {
-                        var matrixIndex = (int)objMesh.BlendIndices[i][m];
-                        resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
+                        var position = objMesh.Positions[i];
+                        var resultVectors = new List<Vector3>();
+                        float[] weights = new float[]
+                        {
+                            objMesh.BlendWeights[i].X,
+                            objMesh.BlendWeights[i].Y,
+                            objMesh.BlendWeights[i].Z,
+                            objMesh.BlendWeights[i].W,
+                        };
+                        for (int m = 0; m < 4; m++)
+                        {
+                            var matrixIndex = (int)objMesh.BlendIndices[i][m];
+                            resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
+                        }
+                        objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
                     }
-                    objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
                 }
                 // Add to list
                 objMeshes.Add(objMesh);
@@ -97,7 +100,9 @@ namespace EffigyMaker.Core
             // Take the initial material as the base of the merged materials
             finalMesh.Material = objMeshes.FirstOrDefault().Material.Clone();
             var textureImages = objMeshes.Select(o => o.Material.TextureImage).ToList();
-            finalMesh.Material.TextureImage = ObjMaterial.StackImages(textureImages);
+            finalMesh.Material.TextureImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.TextureImage).ToList());
+            finalMesh.Material.NormalsImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.NormalsImage).ToList());
+            finalMesh.Material.SpecularImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.SpecularImage).ToList());
 
             float vCoord = 0;
             foreach (var objMesh in objMeshes)
@@ -126,7 +131,7 @@ namespace EffigyMaker.Core
             }
 
             // Transform to be smaller and upright
-            //objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
+            //finalMesh.Positions = finalMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
 
             finalMesh.WriteToFiles("out");
         }

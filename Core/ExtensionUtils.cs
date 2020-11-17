@@ -41,22 +41,5 @@ namespace EffigyMaker.Core
             }
             return newBitmap;
         }
-
-        ///// <summary>
-        ///// Resizes the given bitmap
-        ///// </summary>
-        ///// <param name="bitmap">The bitmap to resize</param>
-        ///// <returns>The resized bitmap</returns>
-        //public static SKBitmap Resize(this SKBitmap bitmap, int newWidth, int newHeight)
-        //{
-        //    SKBitmap newBitmap = new SKBitmap(newWidth, newHeight);
-        //    using (SKCanvas canvas = new SKCanvas(newBitmap))
-        //    {
-        //        canvas.Clear();
-        //        canvas.Scale(1, -1, 0, bitmap.Height / 2);
-        //        canvas.DrawBitmap(bitmap, new SKPoint());
-        //    }
-        //    return newBitmap;
-        //}
     }
 }
