@@ -94,7 +94,7 @@ namespace EffigyMaker.Core
             // Transform to be smaller and upright
             //objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
 
-            File.WriteAllText("out.obj", objMesh.ToString());
+            objMesh.WriteToFiles("out");
         }
 
         /// <summary>
@@ -187,10 +187,18 @@ namespace EffigyMaker.Core
                     var newFaces = indices.ChunkBy(3).Select(idxList => idxList.Select(idx => new ObjFaceVertex(idx + startingVertexCount)).ToList()).ToList();
                     objMesh.Faces.AddRange(newFaces);
 
-                    // TODO: do stuff with materials here
                     var materialPath = drawCall.GetProperty<string>("m_material");
                     var materialResource = VpkLoader.LoadFile(materialPath + "_c");
                     var renderMaterial = (VMaterial)materialResource.DataBlock;
+                    var matName = Path.GetFileNameWithoutExtension(materialPath);
+                    if (objMesh.Material == null)
+                    {
+                        objMesh.Material = ObjMaterial.FromVMaterial(renderMaterial, Path.GetFileNameWithoutExtension(materialPath), VpkLoader);
+                    }
+                    else if (matName != objMesh.Material.Name)
+                    {
+                        // throw new Exception("2 different mats in same object");
+                    }
                 }
             }
         }

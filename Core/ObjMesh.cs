@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Numerics;
 using System.Text;
 
@@ -17,20 +18,24 @@ namespace EffigyMaker.Core
 
         /// <summary>
         /// These aren't exported to the obj file, but we need them for doing animations
-        /// THESE ARE INDEXES OF BONES
         /// </summary>
         public List<List<byte>> BlendIndices { get; set; } = new List<List<byte>>();
         public List<Vector4> BlendWeights { get; set; } = new List<Vector4>();
 
+        public ObjMaterial Material { get; set; }
+
         /// <summary>
-        /// The obj mesh as a string, ready to be written to a file
+        /// Writes the obj file and any accompanying files to the given location
         /// </summary>
-        /// <returns>The string to be written to a file</returns>
-        public override string ToString()
+        /// <param name="path">The file name to write to, without any extensions</param>
+        public void WriteToFiles(string path)
         {
+            var file = Path.GetFileName(path);
+
             var lines = new List<string>();
 
             lines.Add("# Exported from EffigyMaker");
+            lines.Add($"mtllib {file}.mtl");
             lines.Add("o Object.1");
 
             foreach (var vertex in Positions)
@@ -48,12 +53,15 @@ namespace EffigyMaker.Core
                 lines.Add($"vt {coord.X:0.######} {coord.Y:0.######}");
             }
 
+            lines.Add($"usemtl {Material.Name}");
             foreach (var face in Faces)
             {
                 lines.Add($"f {string.Join(" ", face)}");
             }
-            lines.Add("\n"); // Add a few newlines at the end
-            return string.Join("\n", lines);
+
+            File.WriteAllText(path + ".obj", string.Join("\n", lines));
+
+            Material.WriteToFiles(path);
         }
     }
 }
