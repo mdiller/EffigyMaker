@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using ValveResourceFormat.ResourceTypes;
 
@@ -16,6 +17,26 @@ namespace EffigyMaker.Core
         public float SpecularExponent { get; set; } = 10;
         public SKImage TextureImage { get; set; }
 
+        /// <summary>
+        /// Clones the current ObjMaterial
+        /// </summary>
+        /// <returns>The cloned objMaterial</returns>
+        public ObjMaterial Clone()
+        {
+            var mat = new ObjMaterial();
+            mat.Name = Name;
+            mat.SpecularExponent = SpecularExponent;
+            mat.TextureImage = TextureImage;
+            return mat;
+        }
+
+        /// <summary>
+        /// Creates an ObjMaterial from a valve material
+        /// </summary>
+        /// <param name="material">The material to create from</param>
+        /// <param name="name">The name of this new material</param>
+        /// <param name="vpkLoader">A vpk file loader</param>
+        /// <returns>The created ObjMaterial</returns>
         public static ObjMaterial FromVMaterial(Material material, string name, BasicVpkFileLoader vpkLoader)
         {
             var mat = new ObjMaterial();
@@ -27,17 +48,34 @@ namespace EffigyMaker.Core
             var filename = material.TextureParams["g_tColor"];
             var data = vpkLoader.LoadFile(filename + "_c");
             var bitmap = ((Texture)data.DataBlock).GenerateBitmap();
-            SKBitmap flippedBitmap = new SKBitmap(bitmap.Width, bitmap.Height);
-            using (SKCanvas canvas = new SKCanvas(flippedBitmap))
-            {
-                canvas.Clear();
-                canvas.Scale(1, -1, 0, bitmap.Height / 2);
-                canvas.DrawBitmap(bitmap, new SKPoint());
-            }
-            bitmap = flippedBitmap;
-            mat.TextureImage = SKImage.FromBitmap(bitmap);
+            mat.TextureImage = SKImage.FromBitmap(bitmap.FlipVertically());
 
             return mat;
+        }
+
+
+        /// <summary>
+        /// Stacks the list of images vertically, stretching them to all have the same width
+        /// Note that we stack them bottom-up (by reversing image order), because uv coordinate system has v=0 starting at the bottom
+        /// </summary>
+        /// <param name="images">The images to stack</param>
+        /// <returns>The stacked images</returns>
+        public static SKImage StackImages(List<SKImage> images)
+        {
+            images.Reverse();
+            SKBitmap newBitmap = new SKBitmap(images.Max(i => i.Width), images.Select(i => i.Height).Aggregate((h1, h2) => h1 + h2));
+            using (SKCanvas canvas = new SKCanvas(newBitmap))
+            {
+                canvas.Clear();
+                var h = 0;
+                foreach (var img in images)
+                {
+                    var bitmap = SKBitmap.FromImage(img).Resize(new SKSizeI(newBitmap.Width, img.Height), SKFilterQuality.High);
+                    canvas.DrawBitmap(bitmap, new SKPoint(0, h));
+                    h += img.Height;
+                }
+            }
+            return SKImage.FromBitmap(newBitmap);
         }
 
         /// <summary>

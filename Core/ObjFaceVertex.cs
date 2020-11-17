@@ -24,6 +24,13 @@ namespace EffigyMaker.Core
         public int? NormalIndex { get; set; }
         public int? TextureCoordinateIndex { get; set; }
 
+        public void IncreaseIndexing(int amount)
+        {
+            PositionIndex += amount;
+            NormalIndex += amount;
+            TextureCoordinateIndex += amount;
+        }
+
         /// <summary>
         /// The face as a string to be put in an obj file
         /// </summary>

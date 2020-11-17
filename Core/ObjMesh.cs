@@ -16,6 +16,8 @@ namespace EffigyMaker.Core
         public List<Vector2> TextureCoords { get; set; } = new List<Vector2>();
         public List<List<ObjFaceVertex>> Faces { get; set; } = new List<List<ObjFaceVertex>>();
 
+        public int VertexCount => Positions.Count;
+
         /// <summary>
         /// These aren't exported to the obj file, but we need them for doing animations
         /// </summary>

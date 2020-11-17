@@ -11,6 +11,7 @@ using ValveResourceFormat.ResourceTypes.ModelAnimation;
 using ValveResourceFormat.Serialization;
 using ValveResourceFormat.IO;
 using ValveResourceFormat.ResourceTypes;
+using SkiaSharp;
 
 namespace EffigyMaker.Core
 {
@@ -47,31 +48,23 @@ namespace EffigyMaker.Core
         /// <param name="models">The models to combine and export</param>
         public void ExportModelsAsObj(List<VModel> models)
         {
-            var objMesh = new ObjMesh();
+            var objMeshes = new List<ObjMesh>();
 
-            var mainModel = models[0];
-
-            // A linkage of skeletons and the indexes theyre responsible for
-            var skeletonInfos = new List<(Skeleton skeleton, int start, int end)>();
+            var animations = GetAllAnimations(models[0]);
+            var animation = animations.First(a => a.Name.Contains("idle_anim"));
 
             foreach (var model in models)
             {
-                var startIndex = objMesh.Positions.Count;
+                var objMesh = new ObjMesh();
+
+                // Load mesh
                 var meshes = LoadModelMeshes(model);
-                // TODO: mebbe figure out what to do with the other meshes/skeletons (lod?) in the future
                 var mesh = meshes[0].Mesh;
                 LoadVMeshIntoMesh(objMesh, mesh);
-                var endIndex = objMesh.Positions.Count;
-                skeletonInfos.Add((model.GetSkeleton(0), startIndex, endIndex));
-            }
 
-            // Apply first frame of loadout animation
-            var animations = GetAllAnimations(mainModel);
-            var animation = animations.First(a => a.Name.Contains("idle_anim"));
-            foreach (var skeletonInfo in skeletonInfos)
-            {
-                var animMatrices = animation.GetAnimationMatrices(0, skeletonInfo.skeleton);
-                for (int i = skeletonInfo.start; i < skeletonInfo.end; i++)
+                // Apply animation
+                var animMatrices = animation.GetAnimationMatrices(0, model.GetSkeleton(0));
+                for (int i = 0; i < objMesh.VertexCount; i++)
                 {
                     var position = objMesh.Positions[i];
                     var resultVectors = new List<Vector3>();
@@ -89,12 +82,53 @@ namespace EffigyMaker.Core
                     }
                     objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
                 }
+                // Add to list
+                objMeshes.Add(objMesh);
+            }
+
+            // Merge all objMeshes into one
+            // - merge textures and fix tex coords
+            // - create one final merged texture
+            // - append all vertex points, and fix indexes
+            // - also make sure original v texcoords start in 0-1(wrapping dont work well with our new method)
+            // 
+            var finalMesh = new ObjMesh();
+
+            // Take the initial material as the base of the merged materials
+            finalMesh.Material = objMeshes.FirstOrDefault().Material.Clone();
+            var textureImages = objMeshes.Select(o => o.Material.TextureImage).ToList();
+            finalMesh.Material.TextureImage = ObjMaterial.StackImages(textureImages);
+
+            float vCoord = 0;
+            foreach (var objMesh in objMeshes)
+            {
+                var startIndex = finalMesh.VertexCount;
+                finalMesh.Positions.AddRange(objMesh.Positions);
+                finalMesh.Normals.AddRange(objMesh.Normals);
+
+                float textureHeightModifier = (float)objMesh.Material.TextureImage.Height / finalMesh.Material.TextureImage.Height;
+                finalMesh.TextureCoords.AddRange(objMesh.TextureCoords.Select(uv =>
+                {
+                    var v = uv.Y;
+                    // Lock in to 0-1
+                    while (v > 1)
+                        v -= 1;
+                    while (v < 0)
+                        v += 1;
+                    // Adjust for merged image
+                    v = (v * textureHeightModifier) + vCoord;
+                    return new Vector2(uv.X, v);
+                }));
+                vCoord += textureHeightModifier;
+
+                objMesh.Faces.ForEach(f => f.ForEach(v => v.IncreaseIndexing(startIndex)));
+                finalMesh.Faces.AddRange(objMesh.Faces);
             }
 
             // Transform to be smaller and upright
             //objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
 
-            objMesh.WriteToFiles("out");
+            finalMesh.WriteToFiles("out");
         }
 
         /// <summary>
