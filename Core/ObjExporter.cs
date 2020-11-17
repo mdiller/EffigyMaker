@@ -64,26 +64,27 @@ namespace EffigyMaker.Core
 
                 // Apply animation
                 var animMatrices = animation.GetAnimationMatrices(0, model.GetSkeleton(0));
-                if (objMesh.BlendWeights.Count == objMesh.BlendIndices.Count)
+                if (objMesh.BlendWeights.Count == 0 && objMesh.BlendIndices.Count != 0)
                 {
-                    for (int i = 0; i < objMesh.VertexCount; i++)
+                    objMesh.BlendWeights = objMesh.BlendIndices.Select(idxs => new Vector4((float)0.25, (float)0.25, (float)0.25, (float)0.25)).ToList();
+                }
+                for (int i = 0; i < objMesh.VertexCount; i++)
+                {
+                    var position = objMesh.Positions[i];
+                    var resultVectors = new List<Vector3>();
+                    float[] weights = new float[]
                     {
-                        var position = objMesh.Positions[i];
-                        var resultVectors = new List<Vector3>();
-                        float[] weights = new float[]
-                        {
-                            objMesh.BlendWeights[i].X,
-                            objMesh.BlendWeights[i].Y,
-                            objMesh.BlendWeights[i].Z,
-                            objMesh.BlendWeights[i].W,
-                        };
-                        for (int m = 0; m < 4; m++)
-                        {
-                            var matrixIndex = (int)objMesh.BlendIndices[i][m];
-                            resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
-                        }
-                        objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
+                        objMesh.BlendWeights[i].X,
+                        objMesh.BlendWeights[i].Y,
+                        objMesh.BlendWeights[i].Z,
+                        objMesh.BlendWeights[i].W,
+                    };
+                    for (int m = 0; m < 4; m++)
+                    {
+                        var matrixIndex = (int)objMesh.BlendIndices[i][m];
+                        resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
                     }
+                    objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
                 }
                 // Add to list
                 objMeshes.Add(objMesh);

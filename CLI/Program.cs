@@ -14,7 +14,7 @@ namespace EffigyMaker.CLI
             Console.WriteLine("Exporting!");
             var vpkPath = @"C:\Program Files (x86)\Steam\steamapps\common\dota 2 beta\game\dota\pak01_dir.vpk";
 
-            var heroName = "Anti-Mage";
+            //var heroName = "npc_dota_hero_void_spirit";
             var vpkLoader = BasicVpkFileLoader.FromVpk(vpkPath);
 
             var modelPaths = new List<string>();
