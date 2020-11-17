@@ -33,39 +33,77 @@ namespace EffigyMaker.Core
         /// <summary>
         /// ctor
         /// </summary>
-        /// <param name="fileLoader">The fileloader for the vpk</param>
-        public ObjExporter(IFileLoader fileLoader)
+        /// <param name="vpkLoader">The fileloader for the vpk</param>
+        public ObjExporter(BasicVpkFileLoader vpkLoader)
         {
-            FileLoader = fileLoader;
+            VpkLoader = vpkLoader;
         }
 
-        public IFileLoader FileLoader { get; set; }
+        public BasicVpkFileLoader VpkLoader { get; set; }
 
         /// <summary>
         /// Exports the specified model as an obj file with a texture
         /// </summary>
-        /// <param name="vpkPath">The path to the dota vpk</param>
-        /// <param name="modelPath">The path within the vpk to the model we want to export</param>
-        public void ExportModelAsObj(string modelPath)
+        /// <param name="models">The models to combine and export</param>
+        public void ExportModelsAsObj(List<VModel> models)
         {
-            // exporter.ExportToFile(file.GetFileName(), outputFile, (Model)resource.DataBlock);
-            var resource = FileLoader.LoadFile(modelPath);
-
-            if (resource.ResourceType != ResourceType.Model)
-            {
-                throw new ArgumentException("Passed in path must be a path to a model");
-            }
-
-            var model = (VModel)resource.DataBlock;
-
-            // Add meshes and their skeletons
-            var meshes = LoadModelMeshes(model);
-            // TODO: mebbe figure out what to do with the other meshes/skeletons (lod?) in the future
-            var mesh = meshes[0].Mesh;
-            var skeleton = model.GetSkeleton(0);
-
             var objMesh = new ObjMesh();
 
+            var mainModel = models[0];
+
+            // A linkage of skeletons and the indexes theyre responsible for
+            var skeletonInfos = new List<(Skeleton skeleton, int start, int end)>();
+
+            foreach (var model in models)
+            {
+                var startIndex = objMesh.Positions.Count;
+                var meshes = LoadModelMeshes(model);
+                // TODO: mebbe figure out what to do with the other meshes/skeletons (lod?) in the future
+                var mesh = meshes[0].Mesh;
+                LoadVMeshIntoMesh(objMesh, mesh);
+                var endIndex = objMesh.Positions.Count;
+                skeletonInfos.Add((model.GetSkeleton(0), startIndex, endIndex));
+            }
+
+            // Apply first frame of loadout animation
+            var animations = GetAllAnimations(mainModel);
+            var animation = animations.First(a => a.Name.Contains("idle_anim"));
+            foreach (var skeletonInfo in skeletonInfos)
+            {
+                var animMatrices = animation.GetAnimationMatrices(0, skeletonInfo.skeleton);
+                for (int i = skeletonInfo.start; i < skeletonInfo.end; i++)
+                {
+                    var position = objMesh.Positions[i];
+                    var resultVectors = new List<Vector3>();
+                    float[] weights = new float[]
+                    {
+                        objMesh.BlendWeights[i].X,
+                        objMesh.BlendWeights[i].Y,
+                        objMesh.BlendWeights[i].Z,
+                        objMesh.BlendWeights[i].W,
+                    };
+                    for (int m = 0; m < 4; m++)
+                    {
+                        var matrixIndex = (int)objMesh.BlendIndices[i][m];
+                        resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
+                    }
+                    objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
+                }
+            }
+
+            // Transform to be smaller and upright
+            //objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
+
+            File.WriteAllText("out.obj", objMesh.ToString());
+        }
+
+        /// <summary>
+        /// Loads the VMesh into our Objmesh
+        /// </summary>
+        /// <param name="objMesh">The objmesh to load into</param>
+        /// <param name="mesh">The VMesh to load</param>
+        private void LoadVMeshIntoMesh(ObjMesh objMesh, VMesh mesh)
+        {
             var data = mesh.GetData();
             var vbib = mesh.VBIB;
 
@@ -73,7 +111,7 @@ namespace EffigyMaker.Core
             {
                 foreach (var drawCall in sceneObject.GetArray("m_drawCalls"))
                 {
-                    var startingVertexCount = objMesh.Positions.Count;
+                    var startingVertexCount = objMesh.Positions.Count; // Set this so we can offset the indicies for triangles correctly
                     var vertexBufferInfo = drawCall.GetArray("m_vertexBuffers")[0]; // In what situation can we have more than 1 vertex buffer per draw call?
                     var vertexBufferIndex = (int)vertexBufferInfo.GetIntegerProperty("m_hBuffer");
                     var vertexBuffer = vbib.VertexBuffers[vertexBufferIndex];
@@ -151,40 +189,10 @@ namespace EffigyMaker.Core
 
                     // TODO: do stuff with materials here
                     var materialPath = drawCall.GetProperty<string>("m_material");
-                    var materialResource = FileLoader.LoadFile(materialPath + "_c");
+                    var materialResource = VpkLoader.LoadFile(materialPath + "_c");
                     var renderMaterial = (VMaterial)materialResource.DataBlock;
                 }
             }
-
-            // Apply first frame of loadout animation
-            var animations = GetAllAnimations(model);
-            var animation = animations.First(a => a.Name == "loadout_anim");
-            var animMatrices = animation.GetAnimationMatrices(0, skeleton);
-            for (int i = 0; i < objMesh.Positions.Count; i++)
-            {
-                var position = objMesh.Positions[i];
-                var resultVectors = new List<Vector3>();
-                for (int m = 0; m < 4; m++)
-                {
-                    var matrixIndex = (int)objMesh.BlendIndices[i][m];
-                    float weight = new float[]
-                    {
-                        objMesh.BlendWeights[i].X,
-                        objMesh.BlendWeights[i].Y,
-                        objMesh.BlendWeights[i].Z,
-                        objMesh.BlendWeights[i].W,
-                    }[m];
-                    resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weight));
-                }
-                objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
-            }
-
-            // Transform to be smaller and upright
-            objMesh.Positions = objMesh.Positions.Select(v => v = Vector3.Transform(v, TRANSFORMSOURCETOSTANDARD)).ToList();
-
-            var val = objMesh.Faces.Select(f => f.Max(d => d.PositionIndex)).Max();
-
-            File.WriteAllText("out.obj", objMesh.ToString());
         }
 
         /// <summary>
@@ -200,7 +208,7 @@ namespace EffigyMaker.Core
             // Load animations from referenced animation groups
             foreach (var animGroupPath in animGroupPaths)
             {
-                var animGroup = FileLoader.LoadFile(animGroupPath + "_c");
+                var animGroup = VpkLoader.LoadFile(animGroupPath + "_c");
                 if (animGroup != default)
                 {
                     var data = animGroup.DataBlock is NTRO ntro
@@ -215,7 +223,7 @@ namespace EffigyMaker.Core
                     // Load animation files
                     foreach (var animationFile in animArray)
                     {
-                        var animResource = FileLoader.LoadFile(animationFile + "_c");
+                        var animResource = VpkLoader.LoadFile(animationFile + "_c");
 
                         // Build animation classes
                         animations.AddRange(Animation.FromResource(animResource, decodeKey));
@@ -252,7 +260,7 @@ namespace EffigyMaker.Core
                 else
                 {
                     // Load mesh from file
-                    var meshResource = FileLoader.LoadFile(meshReference + "_c");
+                    var meshResource = VpkLoader.LoadFile(meshReference + "_c");
                     if (meshResource == null)
                     {
                         continue;

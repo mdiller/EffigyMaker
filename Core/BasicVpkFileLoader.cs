@@ -18,6 +18,8 @@ namespace EffigyMaker.Core
             CurrentPackage = package ?? throw new ArgumentNullException(nameof(package));
         }
 
+        public string VpkDir => Path.GetDirectoryName(CurrentPackage.FileName);
+
         public Resource LoadFile(string file)
         {
             file = FixPathSlashes(file);
@@ -25,7 +27,11 @@ namespace EffigyMaker.Core
 
             if (entry == null)
             {
-                return null;
+                entry = CurrentPackage.FindEntry(file + "_c");
+                if (entry == null)
+                {
+                    return null;
+                }
             }
 
             CurrentPackage.ReadEntry(entry, out var output, false);
@@ -34,6 +40,26 @@ namespace EffigyMaker.Core
             resource.Read(new MemoryStream(output));
 
             return resource;
+        }
+
+        public string LoadFileText(string file)
+        {
+            file = FixPathSlashes(file);
+            var entry = CurrentPackage.FindEntry(file);
+
+            if (entry == null)
+            {
+                file = Path.Combine(VpkDir, file);
+                if (!File.Exists(file))
+                {
+                    return null;
+                }
+                return File.ReadAllText(file);
+            }
+
+            CurrentPackage.ReadEntry(entry, out var output, false);
+
+            return System.Text.Encoding.UTF8.GetString(output);
         }
 
         public static BasicVpkFileLoader FromVpk(string path)

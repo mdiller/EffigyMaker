@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="ValvePak" Version="1.0.2.35" />
     <PackageReference Include="ValveResourceFormat" Version="0.1.6.515" />
   </ItemGroup>
