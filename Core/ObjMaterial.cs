@@ -56,10 +56,13 @@ namespace EffigyMaker.Core
             mat.NormalsImage = SKImage.FromBitmap(bitmap.FlipVertically());
 
             // Specular
-            filename = material.TextureParams["g_tMasks2"];
-            data = vpkLoader.LoadFile(filename + "_c");
-            bitmap = ((Texture)data.DataBlock).GenerateBitmap();
-            mat.SpecularImage = SKImage.FromBitmap(bitmap.FlipVertically());
+            if (material.TextureParams.ContainsKey("g_tMasks2"))
+            {
+                filename = material.TextureParams["g_tMasks2"];
+                data = vpkLoader.LoadFile(filename + "_c");
+                bitmap = ((Texture)data.DataBlock).GenerateBitmap();
+                mat.SpecularImage = SKImage.FromBitmap(bitmap.FlipVertically());
+            }
 
             return mat;
         }

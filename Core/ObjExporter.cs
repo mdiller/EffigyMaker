@@ -52,7 +52,9 @@ namespace EffigyMaker.Core
 
             var animations = GetAllAnimations(models[0]);
             var animation = animations.First(a => a.Name.Contains("idle"));
-            
+
+            var isnecklace = false;
+
             foreach (var model in models)
             {
                 var objMesh = new ObjMesh();
@@ -77,7 +79,7 @@ namespace EffigyMaker.Core
                     for (int i = 0; i < objMesh.VertexCount; i++)
                     {
                         var position = objMesh.Positions[i];
-                        var resultVectors = new List<Vector3>();
+                        var resultVectors = new List<Vector3>(); 
                         float[] weights = new float[]
                         {
                         objMesh.BlendWeights[i].X,
@@ -85,16 +87,24 @@ namespace EffigyMaker.Core
                         objMesh.BlendWeights[i].Z,
                         objMesh.BlendWeights[i].W,
                         };
+
                         for (int m = 0; m < 4; m++)
                         {
                             var matrixIndex = (int)objMesh.BlendIndices[i][m];
                             resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
                         }
+                        //if (isnecklace)
+                        //{
+                        //    objMesh.Positions[i] = Vector3.Transform(objMesh.Positions[i], Matrix4x4.CreateFromYawPitchRoll(0, (float)Math.PI, 0));
+                        //}
+
                         objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
+                        objMesh.Positions[i] = Vector3.Transform(objMesh.Positions[i], TRANSFORMSOURCETOSTANDARD);
                     }
                 }
                 // Add to list
                 objMeshes.Add(objMesh);
+                isnecklace = true;
             }
 
             // Merge all objMeshes into one
@@ -108,9 +118,9 @@ namespace EffigyMaker.Core
             // Take the initial material as the base of the merged materials
             finalMesh.Material = objMeshes.FirstOrDefault().Material.Clone();
             var textureImages = objMeshes.Select(o => o.Material.TextureImage).ToList();
-            finalMesh.Material.TextureImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.TextureImage).ToList());
-            finalMesh.Material.NormalsImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.NormalsImage).ToList());
-            finalMesh.Material.SpecularImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.SpecularImage).ToList());
+            finalMesh.Material.TextureImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.TextureImage).Where(img => img != null).ToList());
+            finalMesh.Material.NormalsImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.NormalsImage).Where(img => img != null).ToList());
+            finalMesh.Material.SpecularImage = ObjMaterial.StackImages(objMeshes.Select(o => o.Material.SpecularImage).Where(img => img != null).ToList());
 
             float vCoord = 0;
             foreach (var objMesh in objMeshes)
@@ -188,22 +198,19 @@ namespace EffigyMaker.Core
 
                             continue;
                         }
-
-                        if (attribute.SemanticName == "BLENDWEIGHT")
+                        else if (attribute.SemanticName == "BLENDWEIGHT")
                         {
                             var vectors = ToVector4Array(buffer);
                             //float r = 1.0f / 255.0f;
                             //vectors = vectors.Select(v => new Vector4(v.X * r, v.Y * r, v.Z * r, v.W * r)).ToArray();
                             objMesh.BlendWeights.AddRange(vectors);
                         }
-
-                        if (attribute.SemanticName == "POSITION")
+                        else if (attribute.SemanticName == "POSITION")
                         {
                             var vectors = ToVector3Array(buffer);
                             objMesh.Positions.AddRange(vectors);
                         }
-
-                        if (attribute.SemanticName == "NORMAL")
+                        else if (attribute.SemanticName == "NORMAL")
                         {
                             if (VMesh.IsCompressedNormalTangent(drawCall))
                             {
@@ -218,8 +225,7 @@ namespace EffigyMaker.Core
                             }
                             continue;
                         }
-
-                        if (attribute.SemanticName == "TEXCOORD")
+                        else if (attribute.SemanticName == "TEXCOORD")
                         {
                             if (numComponents != 2)
                             {
@@ -228,6 +234,10 @@ namespace EffigyMaker.Core
                             }
                             var vectors = ToVector2Array(buffer);
                             objMesh.TextureCoords.AddRange(vectors);
+                        }
+                        else
+                        {
+                            Console.WriteLine("hi");
                         }
                     }
 
@@ -311,7 +321,7 @@ namespace EffigyMaker.Core
             for (var i = 0; i < meshes.Length; i++)
             {
                 var meshReference = refMeshes[i];
-                if (meshReference == null)
+                if (string.IsNullOrEmpty(meshReference))
                 {
                     // If refmesh is null, take an embedded mesh
                     meshes[i] = (embeddedMeshes[embeddedMeshIndex++], $"Embedded Mesh {embeddedMeshIndex}");
