@@ -60,31 +60,38 @@ namespace EffigyMaker.Core
                 // Load mesh
                 var meshes = LoadModelMeshes(model);
                 var mesh = meshes[0].Mesh;
+
                 LoadVMeshIntoMesh(objMesh, mesh);
 
+                var maxBlendIndex = objMesh.BlendIndices.SelectMany(b => b).Max();
+
                 // Apply animation
-                var animMatrices = animation.GetAnimationMatrices(0, model.GetSkeleton(0));
-                if (objMesh.BlendWeights.Count == 0 && objMesh.BlendIndices.Count != 0)
+                var animate = true;
+                if (animate)
                 {
-                    objMesh.BlendWeights = objMesh.BlendIndices.Select(idxs => new Vector4((float)0.25, (float)0.25, (float)0.25, (float)0.25)).ToList();
-                }
-                for (int i = 0; i < objMesh.VertexCount; i++)
-                {
-                    var position = objMesh.Positions[i];
-                    var resultVectors = new List<Vector3>();
-                    float[] weights = new float[]
+                    var animMatrices = animation.GetAnimationMatrices(1f, model.GetSkeleton(0));
+                    if (objMesh.BlendWeights.Count == 0 && objMesh.BlendIndices.Count != 0)
                     {
+                        objMesh.BlendWeights = objMesh.BlendIndices.Select(idxs => new Vector4((float)1, (float)0, (float)0, (float)0)).ToList();
+                    }
+                    for (int i = 0; i < objMesh.VertexCount; i++)
+                    {
+                        var position = objMesh.Positions[i];
+                        var resultVectors = new List<Vector3>();
+                        float[] weights = new float[]
+                        {
                         objMesh.BlendWeights[i].X,
                         objMesh.BlendWeights[i].Y,
                         objMesh.BlendWeights[i].Z,
                         objMesh.BlendWeights[i].W,
-                    };
-                    for (int m = 0; m < 4; m++)
-                    {
-                        var matrixIndex = (int)objMesh.BlendIndices[i][m];
-                        resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
+                        };
+                        for (int m = 0; m < 4; m++)
+                        {
+                            var matrixIndex = (int)objMesh.BlendIndices[i][m];
+                            resultVectors.Add(Vector3.Multiply(Vector3.Transform(position, animMatrices[matrixIndex]), weights[m]));
+                        }
+                        objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
                     }
-                    objMesh.Positions[i] = resultVectors.Aggregate((v1, v2) => Vector3.Add(v1, v2));
                 }
                 // Add to list
                 objMeshes.Add(objMesh);
@@ -151,6 +158,8 @@ namespace EffigyMaker.Core
             {
                 foreach (var drawCall in sceneObject.GetArray("m_drawCalls"))
                 {
+                    // this stuff based on CreateGltfMesh() in GltfModelExporter.cs
+
                     var startingVertexCount = objMesh.Positions.Count; // Set this so we can offset the indicies for triangles correctly
                     var vertexBufferInfo = drawCall.GetArray("m_vertexBuffers")[0]; // In what situation can we have more than 1 vertex buffer per draw call?
                     var vertexBufferIndex = (int)vertexBufferInfo.GetIntegerProperty("m_hBuffer");
@@ -161,13 +170,13 @@ namespace EffigyMaker.Core
                     var indexBuffer = vbib.IndexBuffers[indexBufferIndex];
 
                     // Set vertex attributes
-                    foreach (var attribute in vertexBuffer.Attributes)
+                    foreach (var attribute in vertexBuffer.InputLayoutFields)
                     {
                         var buffer = ReadAttributeBuffer(vertexBuffer, attribute);
-                        var numComponents = buffer.Length / vertexBuffer.Count;
+                        var numComponents = buffer.Length / vertexBuffer.ElementCount;
 
 
-                        if (attribute.Name == "BLENDINDICES")
+                        if (attribute.SemanticName == "BLENDINDICES")
                         {
                             var byteBuffer = buffer.Select(f => (byte)f).ToArray();
                             var rawBufferData = new byte[buffer.Length];
@@ -180,19 +189,21 @@ namespace EffigyMaker.Core
                             continue;
                         }
 
-                        if (attribute.Name == "BLENDWEIGHT")
+                        if (attribute.SemanticName == "BLENDWEIGHT")
                         {
                             var vectors = ToVector4Array(buffer);
+                            //float r = 1.0f / 255.0f;
+                            //vectors = vectors.Select(v => new Vector4(v.X * r, v.Y * r, v.Z * r, v.W * r)).ToArray();
                             objMesh.BlendWeights.AddRange(vectors);
                         }
 
-                        if (attribute.Name == "POSITION")
+                        if (attribute.SemanticName == "POSITION")
                         {
                             var vectors = ToVector3Array(buffer);
                             objMesh.Positions.AddRange(vectors);
                         }
 
-                        if (attribute.Name == "NORMAL")
+                        if (attribute.SemanticName == "NORMAL")
                         {
                             if (VMesh.IsCompressedNormalTangent(drawCall))
                             {
@@ -208,7 +219,7 @@ namespace EffigyMaker.Core
                             continue;
                         }
 
-                        if (attribute.Name == "TEXCOORD")
+                        if (attribute.SemanticName == "TEXCOORD")
                         {
                             if (numComponents != 2)
                             {
@@ -324,26 +335,26 @@ namespace EffigyMaker.Core
         }
 
 
-        private static float[] ReadAttributeBuffer(VertexBuffer buffer, VertexAttribute attribute)
-            => Enumerable.Range(0, (int)buffer.Count)
+        private static float[] ReadAttributeBuffer(OnDiskBufferData buffer, RenderInputLayoutField attribute)
+            => Enumerable.Range(0, (int)buffer.ElementCount)
                 .SelectMany(i => VBIB.ReadVertexAttribute(i, buffer, attribute))
                 .ToArray();
 
-        private static int[] ReadIndices(IndexBuffer indexBuffer, int start, int count)
+        private static int[] ReadIndices(OnDiskBufferData indexBuffer, int start, int count)
         {
             var indices = new int[count];
 
-            var byteCount = count * (int)indexBuffer.Size;
-            var byteStart = start * (int)indexBuffer.Size;
+            var byteCount = count * (int)indexBuffer.ElementSizeInBytes;
+            var byteStart = start * (int)indexBuffer.ElementSizeInBytes;
 
-            if (indexBuffer.Size == 4)
+            if (indexBuffer.ElementSizeInBytes == 4)
             {
-                System.Buffer.BlockCopy(indexBuffer.Buffer, byteStart, indices, 0, byteCount);
+                System.Buffer.BlockCopy(indexBuffer.Data, byteStart, indices, 0, byteCount);
             }
-            else if (indexBuffer.Size == 2)
+            else if (indexBuffer.ElementSizeInBytes == 2)
             {
                 var shortIndices = new ushort[count];
-                System.Buffer.BlockCopy(indexBuffer.Buffer, byteStart, shortIndices, 0, byteCount);
+                System.Buffer.BlockCopy(indexBuffer.Data, byteStart, shortIndices, 0, byteCount);
                 indices = Array.ConvertAll(shortIndices, i => (int)i);
             }
 
